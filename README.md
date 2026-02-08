@@ -67,3 +67,19 @@ This repository contains the code to the paper "Cost-Aware Optimized Front-Door 
 | lambda_lower | Lower bound for \$ \lambda \$ in the computational optimization |
 | lambda_upper | Upper bound for \$ \lambda \$ in the computational optimization |
 | n_sub | Sample size for Monte-Carlo sub-sampling of \$ E[g_2 \| \varepsilon\_{Bt} ] \$ |
+
+# Application to real data
+
+To apply our methodology, load the script functions.R. Specify the cost functions and provide a dataset as well as the propensities with which this dataset was sampled.
+
+1.  Call `estimates <- estimate_parameters(data, pi1_fun)` to obtain a list of model parameter estimates.
+
+2.  Call `mom <- compute_moments(data, estimates, pi1_fun)` to obtain a list of error estimates as well as estimates for \$ g_1 \$ and \$ g_2 \$ from Thm. 11.
+
+3.  Call `avars_vanilla <- compute_oif_variance(data, estimates, pi1_fun, pi1 = rep(1, dim(data)[1]))` to obtain the asymptotic variance.
+
+4.  Call `cost_vanilla <- compute_expected_cost(rep(1, dim(data)[1]), c0 = 2, c1_fun(data[, c("X_B", "X_t")]), mom$Weight_2inf, indicator = indicator_2inf)` to obtain the cost of the provided datasets.
+
+5.  Call `opt <- compute_optimal_pi(data, estimates, c0, c1_fun = c1_fun, b0 = b0, pi1_0_fun = pi1_fun, n_sub = 10000)` to obtain the optimized propensity, so the recommended new experimental design.
+
+6.  Call `avars_opt <- compute_oif_variance(data, estimates, pi1_fun, pi1 = opt$pi1_star)` to obtain the asymptotic variance of the optimized design.
