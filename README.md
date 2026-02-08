@@ -83,3 +83,7 @@ To apply our methodology, load the script functions.R. Specify the cost function
 5.  Call `opt <- compute_optimal_pi(data, estimates, c0, c1_fun = c1_fun, b0 = b0, pi1_0_fun = pi1_fun, n_sub = 10000)` to obtain the optimized propensity, so the recommended new experimental design.
 
 6.  Call `avars_opt <- compute_oif_variance(data, estimates, pi1_fun, pi1 = opt$pi1_star)` to obtain the asymptotic variance of the optimized design.
+
+The three files in the folder 'Data_Applications' have implemented the described pipeline for reference. Unfortunately, we are not able to provide the original datasets due to licensing.
+
+For further questions, feel free to contact the authors.
