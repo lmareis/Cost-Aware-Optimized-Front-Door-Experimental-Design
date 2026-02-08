@@ -19,7 +19,7 @@ This repository contains the code to the paper "Cost-Aware Optimized Front-Door 
 |------------------------------------|------------------------------------|
 | Back_Door | Code for Back-door methods and experiments |
 | Data_Application | Code for real-life applications. Datasets are not included due to licensing |
-| plots | Plot of all Figures in the paper |
+| plots | Plots of all Figures in the paper |
 | runs | .RDS files of all runs used for the visualizations |
 
 ## Functions.R
