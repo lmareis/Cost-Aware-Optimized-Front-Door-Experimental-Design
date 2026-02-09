@@ -85,15 +85,9 @@ estimate_frontdoor <- function(data, t_grid, pi1_fun, pi2_fun) {
        E_r_do_t = E_vals)
 }
 
-t_grid <- seq(-0.1, 0.1, length.out = 11) 
+t_grid <- seq(-0.1, 0.1, length.out = 10)
 fd_res <- estimate_frontdoor(data, t_grid, pi1_fun, pi2_fun) 
-#plot(fd_res$t_grid, fd_res$E_r_do_t, type = "l") 
-
-#lm(fd_res$E_r_do_t ~ fd_res$t_grid)
-## Better: automatic differentiation
-E_vals <- fd_res$E_r_do_t
-t_grid <- fd_res$t_grid
-diff(E_vals) / diff(t_grid)
+fd_res$E_r_do_t
 }
 
 
@@ -156,7 +150,6 @@ beta_Mt = c(0.7, 0.2, 0.1)
 beta_Mt2 = c(0.1, 0.2, 0.4)
 beta_rB = c(0.2, -0.1)
 beta_rM = c(0.5, 0.4, -0.3)
-xi <- sum(beta_Mt * beta_rM)
 
 sigma_B = rbind(c(1, 0.7), c(0.7, 1.5))
 eps_B_fun <- function(n) {mvtnorm::rmvt(n, sigma = sigma_B, df = 5)}
@@ -246,9 +239,8 @@ for (i in 1:n_reps){
 }
 
 # mse_computation:
-t_grid <- seq(-0.1, 0.1, length.out = 11) 
-xi_int <- sum(beta_Mt * beta_rM) * t_grid + sum(beta_Mt2 * beta_rM) * t_grid^2 
-xi <- diff(xi_int) / diff(t_grid)
+t_grid <- seq(-0.1, 0.1, length.out = 10) 
+xi <- sum(beta_Mt * beta_rM) * t_grid + sum(beta_Mt2 * beta_rM) * t_grid^2 
 
 mse_vanilla <- array(NA, dim = length(sample_sizes))
 mse_opt <- array(NA, dim = length(sample_sizes))
