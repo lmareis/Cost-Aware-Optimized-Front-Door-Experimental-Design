@@ -2,7 +2,10 @@
 
 This repository contains the code to the paper "Cost-Aware Optimized Front-Door Experimental Design" by Mareis and Drton, accepted at CleaR 2026. 
 
-Note that this codebase was written with a change in the variable names. 
+
+## Notational Changes to the Paper
+
+Note that this codebase was written with a change in the following variable names:
 
 | Paper | Code |
 |----|----|
