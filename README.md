@@ -2,6 +2,11 @@
 
 This repository contains the code to the paper "Cost-Aware Optimized Front-Door Experimental Design" by (anonymized).
 
+Note that this codebase was written with a change in the variable names. 
+Paper: Confounder variable X_C = X_B Base variable :Code
+Paper: Coarsening variable \Delta = C Coarsening variable :Code
+Paper: removed = X_S Sink variable :Code (A component of X with only incoming egdes in the causal graph; irrelevant for estimation.)
+
 ## Files:
 
 |  |  |
