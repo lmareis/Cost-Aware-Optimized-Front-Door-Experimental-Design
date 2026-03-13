@@ -8,88 +8,57 @@ source("./Documents/papers/2025_sample_optimization/code/R/functions.R")
 # Quadratic causal effect estimation
 # ------------------------------------------------------------------------------
 
-causal_effect_frontdoor <- function(data, pi1_fun, pi2_fun){
-estimate_frontdoor <- function(data, t_grid, pi1_fun, pi2_fun) {
-  pi1 <- pi1_fun(data[, c("X_B", "X_t")])# idx_MtB
-  pi2 <- pi2_fun(data[, c("X_B", "X_t", "X_M")]) # idx_MtB
+estimate_M <- function(data, beta_tB, pi1_fun, quadratic = FALSE) {
+  eps_t <- data$X_t - as.matrix(data$X_B) %*% beta_tB
+  W <- ifelse(data$C >= 2, 1 / pi1_fun(data[, c("X_B", "X_t")]), 0)
   
-  data <- as.matrix(data)
-  data <- as.data.frame(data)
-  X_B <- data[, c("X_B.1", "X_B.2")]        
-  X_M <- data[, c("X_M.1","X_M.2","X_M.3")]       
-  X_t <- data[, "X_t", drop = FALSE]            
-  X_r <- data[, "X_r", drop = FALSE]          
-  
-  ## Indices for available data
-  idx_tB  <- which(!is.na(X_t))                 
-  idx_MtB <- which(!is.na(X_M[,1]))            
-  idx_rMtB <- which(!is.na(X_r))           
-  
-  
-  ## 1) Model T | B
-  df_tB <- data[idx_tB, c("X_B.1", "X_B.2", "X_t")]
-  mod_t_given_B <- lm(X_t ~ ., data = df_tB)
-  
-  ## 2) Model M | T, B  (multivariate regression)
-  df_MtB <- data[idx_MtB, c("X_B.1", "X_B.2", "X_t", "X_M.1","X_M.2","X_M.3")]
-  df_MtB$X_t <- as.numeric(df_MtB$X_t)
-  mod_M_given_tB <- lm(cbind(X_M.1, X_M.2, X_M.3) ~ X_B.1 + X_B.2 + poly(X_t, 3, raw = TRUE), 
-                       data = df_MtB, weights = 1 / pi1[idx_MtB])
-  
-  ## 3) Model R | M, T, B
-  df_rMtB <- data[idx_rMtB, c("X_B.1", "X_B.2", "X_t", "X_M.1","X_M.2","X_M.3", "X_r")]
-  df_rMtB$X_t <- as.numeric(df_rMtB$X_t) 
-  mod_r_given_MtB <- lm(X_r ~ ., data = df_rMtB, 
-                        weights = 1 / (pi1[idx_rMtB] * pi2[idx_rMtB]))
-  
-  ## Baseline covariates for outer expectation
-  B_mat <- X_B[idx_tB, , drop = FALSE]
-  n_B   <- nrow(B_mat)
-  
-  ## Empirical distribution of T | B approximated by observed X_t
-  T_vec <- X_t[idx_tB, , drop = FALSE]
-  n_T   <- dim(T_vec)[1]
-  
-  ## Function computing E[R | do(T = t0)]
-  E_r_do_t <- function(t0) {
-    ER_given_B <- numeric(n_B)
-    
-    df_tB_copy <- df_tB
-    df_tB_copy[, "X_t"] <- t0
-    df_tB_copy$X_t <- as.numeric(df_tB_copy$X_t)
-    m_hat_all <- predict(mod_M_given_tB, newdata = df_tB_copy)
-    
-    for (i in seq_len(n_B)) { #sample(seq_len(n_B), min(n_B, 2000))) {
-
-      m_i <- m_hat_all[i, ]   # 1 × d_M
-      
-      ## Step 2: inner expectation over empirical T_j
-      new_r <- as.data.frame(cbind(
-        X_B = as.matrix(rep(1, n_T)) %*% as.matrix(B_mat[i, ]),
-        X_t = as.matrix(X_t[idx_tB, , drop = FALSE]),
-        X_M = matrix(rep(m_i, each = n_T), nrow = n_T)
+  if (quadratic) {
+    fit <- lm(as.matrix(data$X_M) ~ data$X_t + I(data$X_t^2) + as.matrix(data$X_B),
+              weights = W)
+    if (!is.matrix(coef(fit))) {
+      return(list(
+        beta_Mt  = as.matrix(coef(fit)[2]),
+        beta_Mt2 = as.matrix(coef(fit)[3]),
+        beta_MB  = t(coef(fit)[-c(1, 2, 3)])
       ))
-      colnames(new_r)[4:6] <- c("X_M.1","X_M.2","X_M.3")
-      
-      r_hat_ij <- predict(mod_r_given_MtB, newdata = new_r)
-      ER_given_B[i] <- mean(r_hat_ij)
     }
-    
-    mean(ER_given_B[ER_given_B!=0])
+    return(list(
+      beta_Mt  = coef(fit)[2, ],
+      beta_Mt2 = coef(fit)[3, ],
+      beta_MB  = t(coef(fit)[-c(1, 2, 3), ])
+    ))
+  } else {
+    fit <- lm(as.matrix(data$X_M) ~ data$X_t + as.matrix(data$X_B),
+              weights = W)
+    if (!is.matrix(coef(fit))) {
+      return(list(
+        beta_Mt  = as.matrix(coef(fit)[2]),
+        beta_Mt2 = NULL,
+        beta_MB  = t(coef(fit)[-c(1, 2)])
+      ))
+    }
+    return(list(
+      beta_Mt  = coef(fit)[2, ],
+      beta_Mt2 = NULL,
+      beta_MB  = t(coef(fit)[-c(1, 2), ])
+    ))
   }
-  
-  ## Compute E[R | do(t)] on grid
-  E_vals <- sapply(t_grid, E_r_do_t)
-  
-  list(t_grid = t_grid,
-       E_r_do_t = E_vals)
 }
 
-t_grid <- seq(-0.1, 0.1, length.out = 10)
-fd_res <- estimate_frontdoor(data, t_grid, pi1_fun, pi2_fun) 
-fd_res$E_r_do_t
+estimate_parameters <- function(data, pi1_fun, pi2_fun, quadratic = FALSE) {
+  beta_tB <- estimate_tB(data)
+  M_est   <- estimate_M(data, beta_tB, pi1_fun, quadratic = quadratic)
+  r_est   <- estimate_r(data, beta_tB, M_est$beta_Mt, M_est$beta_MB,
+                        pi1_fun, pi2_fun)
+  
+  list(beta_tB  = beta_tB,
+       beta_Mt  = M_est$beta_Mt,
+       beta_Mt2 = M_est$beta_Mt2,
+       beta_MB  = M_est$beta_MB,
+       beta_rB  = as.matrix(r_est[1:length(beta_tB)]),
+       gamma    = r_est[length(beta_tB) + 1],
+       beta_rM  = as.matrix(r_est[-(1:(length(beta_tB) + 1))]))
 }
-
 
 # ------------------------------------------------------------------------------
 # Generate Quadratic Data
@@ -138,8 +107,7 @@ generate_data_quadratic <- function(n, dB = 2, dM = 3, dS = 1,
 # ------------------------------------------------------------------------------
 # Experiment
 # ------------------------------------------------------------------------------
-
-set.seed(123)
+set.seed(127)
 
 dB = 2
 dM = 3
@@ -147,9 +115,11 @@ dS = 1
 beta_tB = c(0.5, -0.2)
 beta_MB = rbind(c(0.3, 0.1), c(0.5, 0.2), c(-0.1, 0.3))
 beta_Mt = c(0.7, 0.2, 0.1)
-beta_Mt2 = c(0.1, 0.2, 0.4)
+beta_Mt2 = -c(0.1, 0.2, 0.4)
 beta_rB = c(0.2, -0.1)
 beta_rM = c(0.5, 0.4, -0.3)
+t_grid <- seq(-0.1, 0.1, length.out = 10) 
+
 
 sigma_B = rbind(c(1, 0.7), c(0.7, 1.5))
 eps_B_fun <- function(n) {mvtnorm::rmvt(n, sigma = sigma_B, df = 5)}
@@ -170,13 +140,12 @@ pi1_fun <- function(XBt) { rep(1, nrow(XBt)) }
 pi2_fun <- function(XBtM) { ifelse(apply(XBtM, MARGIN = 1, function(x) {any(is.na(x))}), 
                                    NA, 1) }
 
-set.seed(123)
 
 data <- generate_data_quadratic(1000, dB, dM, dS, beta_tB, beta_MB, beta_Mt, beta_rB, beta_rM,beta_Mt2,
                       eps_B_fun, eps_tr_fun, eps_M_fun,
                       pi1_fun,
                       pi2_fun)
-estimates <- estimate_parameters(data, pi1_fun, pi2_fun)
+estimates <- estimate_parameters(data, pi1_fun, pi2_fun, quadratic = TRUE)
 indicator_2inf <- data$C >= 2
 mom <- compute_moments(data, estimates, pi1_fun, pi2_fun)
 
@@ -204,11 +173,12 @@ cost_opt <- compute_expected_cost(opt$pi12_star[, 1], opt$pi12_star[, 2],
                                   mom$Weight_2inf, indicator = indicator_2inf)
 
 n_reps <- 50
-sample_sizes <- c(100, 250, 500, 750, 1000, 2500, 5000)#, 7500)#, 10000)
+sample_sizes <- c(100, 250, 500, 750, 1000, 2500, 5000, 7500)
+n_sizes <- length(sample_sizes)
 
 # sample and estimate on vanilla
-set.seed(123)
 xi_hat_vanilla <- array(NA, dim = c(n_reps, length(sample_sizes), 10))
+cost_vanilla <- array(NA, dim = c(n_reps, length(sample_sizes)))
 for (i in 1:n_reps){
   for (j in 1:length(sample_sizes)) {
     print(Sys.time())
@@ -217,7 +187,10 @@ for (i in 1:n_reps){
                           eps_B_fun, eps_tr_fun, eps_M_fun,
                           pi1_fun,
                           pi2_fun)
-    xi_hat_vanilla[i, j,] <- causal_effect_frontdoor(data, pi1_fun, pi2_fun)
+    estimates <- estimate_parameters(data, pi1_fun, pi2_fun, quadratic = TRUE)
+    xi_hat_vanilla[i, j, ] <- sum(estimates$beta_Mt * estimates$beta_rM) * t_grid +
+      sum(estimates$beta_Mt2 * estimates$beta_rM) * t_grid^2
+    cost_vanilla[i, j] <- sum(c1_fun(data[, c("X_B", "X_t")]) * (data[, "C"] > 1) + c2_fun(data) * (data[, "C"] > 2))
   }
 }
 
@@ -226,6 +199,7 @@ set.seed(123)
 pi1_star_fun <- function(data) opt$pi1_star_fun(data, opt$lambda_star)
 pi2_star_fun <- function(data) opt$pi2_star_fun(data, opt$lambda_star)
 xi_hat_opt <- array(NA, dim = c(n_reps, length(sample_sizes), 10))
+cost_opt <- array(NA, dim = c(n_reps, length(sample_sizes)))
 for (i in 1:n_reps){
   for (j in 1:length(sample_sizes)) {
     print(Sys.time())
@@ -234,14 +208,15 @@ for (i in 1:n_reps){
                           eps_B_fun, eps_tr_fun, eps_M_fun,
                           pi1_star_fun,
                           pi2_star_fun)
-    xi_hat_opt[i, j, ] <- causal_effect_frontdoor(data, pi1_star_fun, pi2_star_fun)
+    cost_opt[i, j] <- sum(c1_fun(data[, c("X_B", "X_t")]) * (data[, "C"] > 1) + c2_fun(data) * (data[, "C"] > 2))
+    estimates <- estimate_parameters(data, pi1_star_fun, pi2_star_fun, quadratic = TRUE)
+    xi_hat_opt[i, j, ] <- sum(estimates$beta_Mt * estimates$beta_rM) * t_grid +
+      sum(estimates$beta_Mt2 * estimates$beta_rM) * t_grid^2
   }
 }
 
 # mse_computation:
-t_grid <- seq(-0.1, 0.1, length.out = 10) 
 xi <- sum(beta_Mt * beta_rM) * t_grid + sum(beta_Mt2 * beta_rM) * t_grid^2 
-
 mse_vanilla <- array(NA, dim = length(sample_sizes))
 mse_opt <- array(NA, dim = length(sample_sizes))
 for (s in 1:length(sample_sizes)) {
@@ -250,7 +225,7 @@ for (s in 1:length(sample_sizes)) {
   mse_opt[s] <- ModelMetrics::mse(array(xi_hat_opt[, s, ]), 
                                          rep(xi, each = n_reps))
 }
-#
+
 saveRDS(list(xi_hat_opt = xi_hat_opt, xi_hat_vanilla = xi_hat_vanilla,
              mse_opt = mse_opt, mse_vanilla = mse_vanilla, 
              sample_sizes = sample_sizes, 
@@ -259,6 +234,17 @@ saveRDS(list(xi_hat_opt = xi_hat_opt, xi_hat_vanilla = xi_hat_vanilla,
              avar_opt = avar_opt, 
              pi12_star = opt$pi12_star),
         "./Documents/papers/2025_sample_optimization/code/R/runs/calibration/main_miss.RDS")
+
+RDS <- readRDS("./Documents/papers/2025_sample_optimization/code/R/runs/calibration/main_miss.RDS")
+xi_hat_opt <- RDS$xi_hat_opt
+xi_hat_vanilla <- RDS$xi_hat_vanilla
+mse_opt <- RDS$mse_opt
+mse_vanilla <- RDS$mse_vanilla
+sample_sizes <- RDS$sample_sizes
+lambda_star <- RDS$lambda_star
+avar_vanilla <- RDS$avar_vanilla
+avar_opt <- RDS$avar_opt
+pi12_star <- RDS$pi12_star
 
 pdf("./Documents/papers/2025_sample_optimization/code/R/plots/calibration_miss.pdf",
     width = 8, height = 6)
@@ -270,7 +256,7 @@ plot(sample_sizes[1:7], mse_vanilla[1:7], log = "xy", col = "blue", type = "l",
      ylim = c(min(c(mse_opt, mse_vanilla)), max(c(mse_opt, mse_vanilla))),
      cex.main=1.5, cex.lab=1.5, cex.axis = 1.5, lwd = 3)
 mtext(paste("Avg Cost Full-Data =", scale, "· Avg Cost Observed-Data"), side = 3, line = 0.5, cex = 0.8)
-lines(sample_sizes[1:7], mse_opt[1:7], col = "red", lwd = 3)
+lines(sample_sizes[1:7] * colMeans(cost_opt)[1:7] / colMeans(cost_vanilla)[1:7], mse_opt[1:7], col = "red", lwd = 3)
 legend("topright", 
        legend = c("Full Data", "Optimized", "Simulated"), 
        col = c("blue", "red", "black"), 
