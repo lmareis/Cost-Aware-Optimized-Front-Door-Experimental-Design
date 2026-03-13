@@ -3,9 +3,14 @@
 This repository contains the code to the paper "Cost-Aware Optimized Front-Door Experimental Design" by Mareis and Drton, accepted at CleaR 2026. 
 
 Note that this codebase was written with a change in the variable names. 
-Paper: Confounder variable X_C = X_B Base variable :Code
-Paper: Coarsening variable \Delta = C Coarsening variable :Code
-Paper: removed = X_S Sink variable :Code (A component of X with only incoming egdes in the causal graph; irrelevant for estimation.)
+
+| Paper | Code |
+|----|----|
+| Confounder variable X_C | Base variable X_B |
+| Coarsening variable \Delta | Coarsening variable C | 
+| removed | Sink variable X_S | 
+
+The sink variable X_S was a component of X with only incoming egdes in the causal graph and always measured along X_r. It is irrelevant for estimation.
 
 ## Files:
 
